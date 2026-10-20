@@ -1,0 +1,11 @@
+-- Optional demo data. Replace owner_id with a real auth.users UUID before running.
+-- This file is intentionally safe by default: it creates a published demo restaurant owned by no real user only if you provide the owner UUID below.
+-- Example: select id from auth.users order by created_at desc limit 1;
+-- insert into public.restaurants(owner_id,name,slug,whatsapp,published,opening_hours)
+-- values ('YOUR-AUTH-USER-UUID','Le Café Djib','cafe-demo','+25377123456',true,'{"lun-dim":"08:00-22:00"}'::jsonb)
+-- returning id;
+-- Then use the returned restaurant UUID in the category/item inserts below.
+-- insert into public.categories(restaurant_id,name_fr,name_en,name_ar,sort_order) values ('RESTAURANT-UUID','Plats','Meals','الأطباق',1) returning id;
+-- insert into public.menu_items(restaurant_id,category_id,name_fr,name_en,name_ar,description_fr,description_en,description_ar,price_djf,sort_order)
+-- values ('RESTAURANT-UUID','CATEGORY-UUID','Skoudehkaris','Skoudehkaris','سكوديه كاريس','Riz parfumé et viande','Spiced rice and meat','أرز متبل ولحم',2500,1),
+-- ('RESTAURANT-UUID','CATEGORY-UUID','Jus de mangue','Mango juice','عصير المانجو','Jus frais maison','Fresh homemade juice','عصير طازج منزلي',700,2);
