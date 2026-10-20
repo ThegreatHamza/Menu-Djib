@@ -24,6 +24,8 @@ create table if not exists public.orders (
 create index if not exists categories_restaurant_sort_idx on public.categories(restaurant_id,sort_order);
 create index if not exists items_restaurant_sort_idx on public.menu_items(restaurant_id,sort_order);
 create index if not exists orders_restaurant_created_idx on public.orders(restaurant_id,created_at desc);
+create index if not exists restaurants_owner_id_idx on public.restaurants(owner_id);
+create index if not exists items_category_id_idx on public.menu_items(category_id);
 alter table public.restaurants enable row level security; alter table public.categories enable row level security; alter table public.menu_items enable row level security; alter table public.orders enable row level security;
 -- Published restaurants and their menu are public; private/unpublished data is not.
 create policy "public can read published restaurants" on public.restaurants for select using (published = true or auth.uid() = owner_id);
@@ -37,5 +39,52 @@ create policy "owners update orders" on public.orders for update using (exists(s
 -- Order inserts happen via a server-only service role after validation in app/api/orders/route.ts.
 -- Add orders to Supabase Realtime publication (safe to rerun).
 do $$ begin alter publication supabase_realtime add table public.orders; exception when duplicate_object then null; when undefined_object then null; end $$;
--- Storage: create a public bucket named `menu-photos` in Dashboard for logo/food images.
--- Keep uploads owner-only via Storage policies if adding browser upload UI.
+-- Additional indexes for owner lookups and category foreign keys.
+create index if not exists restaurants_owner_id_idx on public.restaurants(owner_id);
+create index if not exists items_category_id_idx on public.menu_items(category_id);
+
+-- Publicly readable dish photos; uploads and modifications are restricted to the restaurant owner.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('menu-photos', 'menu-photos', true, 5242880, array['image/jpeg','image/png','image/webp','image/gif'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+create policy "restaurant owners upload menu photos" on storage.objects
+for insert to authenticated
+with check (
+  bucket_id = 'menu-photos'
+  and exists (
+    select 1 from public.restaurants r
+    where r.id::text = (storage.foldername(name))[1]
+      and r.owner_id = (select auth.uid())
+  )
+);
+
+create policy "restaurant owners update menu photos" on storage.objects
+for update to authenticated
+using (
+  bucket_id = 'menu-photos'
+  and exists (
+    select 1 from public.restaurants r
+    where r.id::text = (storage.foldername(name))[1]
+      and r.owner_id = (select auth.uid())
+  )
+)
+with check (
+  bucket_id = 'menu-photos'
+  and exists (
+    select 1 from public.restaurants r
+    where r.id::text = (storage.foldername(name))[1]
+      and r.owner_id = (select auth.uid())
+  )
+);
+
+create policy "restaurant owners delete menu photos" on storage.objects
+for delete to authenticated
+using (
+  bucket_id = 'menu-photos'
+  and exists (
+    select 1 from public.restaurants r
+    where r.id::text = (storage.foldername(name))[1]
+      and r.owner_id = (select auth.uid())
+  )
+);
